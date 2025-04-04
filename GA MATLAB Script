@@ -1,0 +1,170 @@
+% Παραμετροποίηση βάσει των αναγκών του προβλήματος
+numCards = 15;
+numPiles = 3;
+cardsPerPile = numCards / numPiles;
+populationSize = 50;
+numGenerations = 100;
+mutationRate = 0.1;
+
+% Αρχικοποίηση του πληθυσμού
+population = initializePopulation(populationSize, numCards, numPiles, cardsPerPile);
+
+for generation = 1:numGenerations
+    % Evaluate fitness
+    fitness = evaluateFitness(population);
+    
+    % Selection
+    selected = selection(population, fitness);
+    
+    % Crossover
+    offspring = crossover(selected, numPiles, cardsPerPile);
+    
+    % Mutation
+    mutatedOffspring = mutation(offspring, mutationRate, numPiles, cardsPerPile);
+    
+    % Replace population with new generation
+    population = mutatedOffspring;
+end
+
+% Display final solution
+bestSolution = findBestSolution(population);
+disp('Best solution (pile assignments):');
+disp(bestSolution);
+
+% Display piles
+cards = 1:numCards;
+pile1 = cards(bestSolution == 1);
+pile2 = cards(bestSolution == 2);
+pile3 = cards(bestSolution == 3);
+disp('Pile 1:');
+disp(pile1);
+disp('Pile 2:');
+disp(pile2);
+disp('Pile 3:');
+disp(pile3);
+
+function population = initializePopulation(populationSize, numCards, numPiles, cardsPerPile)
+    population = zeros(populationSize, numCards);
+    for i = 1:populationSize
+        % Generate a random permutation of card indices
+        perm = randperm(numCards);
+        for j = 1:numPiles
+            population(i, perm((j-1)*cardsPerPile + (1:cardsPerPile))) = j;
+        end
+    end
+end
+
+function fitness = evaluateFitness(population)
+    numIndividuals = size(population, 1);
+    fitness = zeros(numIndividuals, 1);
+    
+    for i = 1:numIndividuals
+        chromosome = population(i, :);
+        fitness(i) = evaluateChromosome(chromosome);
+    end
+end
+
+function score = evaluateChromosome(chromosome)
+    cards = 1:15;
+    pile1 = cards(chromosome == 1);
+    pile2 = cards(chromosome == 2);
+    pile3 = cards(chromosome == 3);
+    
+    sum1 = sum(pile1);
+    sum2 = sum(pile2);
+    sum3 = sum(pile3);
+    
+    sums = sort([sum1, sum2, sum3]);
+    diff1 = sums(2) - sums(1);
+    diff2 = sums(3) - sums(2);
+    
+    % The objective is to minimize the difference between the differences.
+    score = abs(diff1 - diff2);
+end
+
+function selected = selection(population, fitness)
+    numIndividuals = size(population, 1);
+    selected = zeros(size(population));
+    tournamentSize = 5; % Size of the tournament
+    
+    for i = 1:numIndividuals
+        % Randomly select `tournamentSize` individuals
+        candidates = randi(numIndividuals, tournamentSize, 1);
+        % Choose the one with the best fitness
+        [~, bestIdx] = min(fitness(candidates));
+        selected(i, :) = population(candidates(bestIdx), :);
+    end
+end
+
+function offspring = crossover(selected, numPiles, cardsPerPile)
+    numIndividuals = size(selected, 1);
+    numCards = size(selected, 2);
+    offspring = zeros(size(selected));
+    
+    for i = 1:2:numIndividuals
+        if i + 1 <= numIndividuals
+            parent1 = selected(i, :);
+            parent2 = selected(i + 1, :);
+            
+            % Ensure crossover maintains the number of cards per pile
+            crossPoint = cardsPerPile * randi([1, 2]);
+            
+            child1 = [parent1(1:crossPoint), parent2(crossPoint + 1:end)];
+            child2 = [parent2(1:crossPoint), parent1(crossPoint + 1:end)];
+            
+            offspring(i, :) = enforcePileSize(child1, numPiles, cardsPerPile);
+            offspring(i + 1, :) = enforcePileSize(child2, numPiles, cardsPerPile);
+        else
+            offspring(i, :) = selected(i, :);
+        end
+    end
+end
+
+function mutatedOffspring = mutation(offspring, mutationRate, numPiles, cardsPerPile)
+    numIndividuals = size(offspring, 1);
+    numCards = size(offspring, 2);
+    mutatedOffspring = offspring;
+    
+    for i = 1:numIndividuals
+        if rand < mutationRate
+            % Swap two cards between different piles
+            swapIndices = randperm(numCards, 2);
+            temp = mutatedOffspring(i, swapIndices(1));
+            mutatedOffspring(i, swapIndices(1)) = mutatedOffspring(i, swapIndices(2));
+            mutatedOffspring(i, swapIndices(2)) = temp;
+            
+            % Ensure the mutation maintains the number of cards per pile
+            mutatedOffspring(i, :) = enforcePileSize(mutatedOffspring(i, :), numPiles, cardsPerPile);
+        end
+    end
+end
+
+function chromosome = enforcePileSize(chromosome, numPiles, cardsPerPile)
+    % Ensure that each pile has the correct number of cards
+    for j = 1:numPiles
+        while sum(chromosome == j) < cardsPerPile
+            for k = 1:numPiles
+                if sum(chromosome == k) > cardsPerPile
+                    idx = find(chromosome == k, 1);
+                    chromosome(idx) = j;
+                end
+            end
+        end
+    end
+end
+
+function bestSolution = findBestSolution(population)
+    numIndividuals = size(population, 1);
+    bestFitness = inf;
+    bestSolution = [];
+    
+    for i = 1:numIndividuals
+        chromosome = population(i, :);
+        fitness = evaluateChromosome(chromosome);
+        
+        if fitness < bestFitness
+            bestFitness = fitness;
+            bestSolution = chromosome;
+        end
+    end
+end
